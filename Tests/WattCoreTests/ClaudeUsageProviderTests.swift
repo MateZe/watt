@@ -115,8 +115,10 @@ struct ClaudeUsageProviderTests {
     }
 
     @Test func providerExplainsUnsupportedAuthenticationAfterCommandFailure() async {
+        let executable = URL(fileURLWithPath: "/bin/true")
         let provider = ClaudeCLIUsageProvider(
-            executable: URL(fileURLWithPath: "/bin/true"),
+            executable: executable,
+            executableResolver: { executable },
             runUsage: { _ in nil },
             configurationDetector: { .configured("Amazon Bedrock") }
         )
