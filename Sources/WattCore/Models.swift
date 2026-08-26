@@ -101,6 +101,7 @@ public struct HarnessUsageSnapshot: Codable, Equatable, Sendable, Identifiable {
             HarnessUsageSnapshot(
                 harness: .codex,
                 limits: [
+                    UsageLimit(id: "five-hour", name: "5 hour", percentage: 23, resetDate: date.addingTimeInterval(1.6 * 3600)),
                     UsageLimit(id: "weekly", name: "Weekly", percentage: 47, resetDate: date.addingTimeInterval(3.2 * 86_400)),
                 ],
                 fetchedAt: date

@@ -127,18 +127,27 @@ public actor CodexAppServerUsageProvider: HarnessUsageProviding {
         }
 
         let rateLimits = envelope.result.rateLimits
-        // App-server has used both bucket positions across versions. Identify
-        // the weekly limit by its duration, then fall back to the historically
-        // weekly secondary bucket when duration metadata is unavailable.
-        let weekly = [rateLimits.primary, rateLimits.secondary]
-            .compactMap { $0 }
-            .first { $0.windowDurationMins == 10_080 }
-            ?? rateLimits.secondary
-        guard let weekly else { throw CodexUsageError.changedResponse }
+        let windows = [rateLimits.primary, rateLimits.secondary].compactMap { $0 }
+        // App-server has used both bucket positions across versions. Prefer
+        // duration metadata, then fall back to the historical primary/session
+        // and secondary/weekly positions when that metadata is unavailable.
+        let fiveHour = windows.first { $0.windowDurationMins == 300 }
+            ?? rateLimits.primary.flatMap { $0.windowDurationMins == nil ? $0 : nil }
+        let weekly = windows.first { $0.windowDurationMins == 10_080 }
+            ?? rateLimits.secondary.flatMap { $0.windowDurationMins == nil ? $0 : nil }
+
+        var limits: [UsageLimit] = []
+        if let fiveHour {
+            limits.append(Self.makeLimit(id: "five-hour", window: fiveHour, fallbackName: "5 hour"))
+        }
+        if let weekly {
+            limits.append(Self.makeLimit(id: "weekly", window: weekly, fallbackName: "Weekly"))
+        }
+        guard !limits.isEmpty else { throw CodexUsageError.changedResponse }
 
         return HarnessUsageSnapshot(
             harness: .codex,
-            limits: [Self.makeLimit(id: "weekly", window: weekly, fallbackName: "Weekly")],
+            limits: limits,
             fetchedAt: fetchedAt
         )
     }

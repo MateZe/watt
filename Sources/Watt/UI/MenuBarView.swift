@@ -111,7 +111,7 @@ struct MenuBarView: View {
 
             if let snapshot = state.snapshot {
                 HStack(alignment: .top, spacing: 10) {
-                    ForEach(displayedLimits(in: snapshot)) { limit in
+                    ForEach(snapshot.limits) { limit in
                         VStack(spacing: 6) {
                             UsageRing(limit: limit, harness: state.harness, size: 58, lineWidth: 4)
                             Text(limit.name)
@@ -238,10 +238,6 @@ struct MenuBarView: View {
         return "\(relative) · \(time)"
     }
 
-    private func displayedLimits(in snapshot: HarnessUsageSnapshot) -> [UsageLimit] {
-        guard snapshot.harness == .codex else { return snapshot.limits }
-        return MenuBarMetric.weekly.limit(in: snapshot).map { [$0] } ?? []
-    }
 }
 
 private struct HUDPointerStyle: ViewModifier {
