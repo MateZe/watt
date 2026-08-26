@@ -69,13 +69,49 @@ struct ClaudeUsageProviderTests {
     }
 
     @Test func providerDoesNotRunWithoutCLI() async {
-        let provider = ClaudeCLIUsageProvider(executable: nil)
+        let provider = ClaudeCLIUsageProvider(
+            executable: nil,
+            executableResolver: { nil }
+        )
         do {
             _ = try await provider.fetchUsage()
             Issue.record("Expected the provider to reject a missing CLI")
         } catch {
             #expect(error as? ClaudeUsageError == .cliUnavailable)
         }
+    }
+
+    @Test func providerFindsCLIInstalledAfterLaunch() async throws {
+        let replacement = URL(fileURLWithPath: "/bin/true")
+        let response = envelope("Current session: 9% used")
+        let provider = ClaudeCLIUsageProvider(
+            executable: nil,
+            executableResolver: { replacement },
+            runUsage: { executable in
+                executable == replacement ? response : nil
+            }
+        )
+
+        let snapshot = try await provider.fetchUsage()
+
+        #expect(snapshot.limits.first { $0.id == "session" }?.percentage == 9)
+    }
+
+    @Test func providerRetriesWithNewCLIWhenCachedExecutableFails() async throws {
+        let cached = URL(fileURLWithPath: "/bin/false")
+        let replacement = URL(fileURLWithPath: "/bin/true")
+        let response = envelope("Current session: 12% used")
+        let provider = ClaudeCLIUsageProvider(
+            executable: cached,
+            executableResolver: { replacement },
+            runUsage: { executable in
+                executable == replacement ? response : nil
+            }
+        )
+
+        let snapshot = try await provider.fetchUsage()
+
+        #expect(snapshot.limits.first { $0.id == "session" }?.percentage == 12)
     }
 
     @Test func providerExplainsUnsupportedAuthenticationAfterCommandFailure() async {

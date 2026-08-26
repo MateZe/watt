@@ -44,13 +44,17 @@ public enum ClaudeUsageError: HarnessUsageProviderError, Equatable, Sendable {
 public actor ClaudeCLIUsageProvider: HarnessUsageProviding {
     public nonisolated let harness = HarnessKind.claude
 
-    private let executable: URL?
+    private var executable: URL?
+    private let executableResolver: @Sendable () -> URL?
     private let now: @Sendable () -> Date
     private let runUsage: @Sendable (URL) async -> Data?
     private let configurationDetector: @Sendable () async -> ClaudeConfigurationStatus
 
     public init(
         executable: URL? = ClaudeCLIResolver.findExecutable(),
+        executableResolver: @escaping @Sendable () -> URL? = {
+            ClaudeCLIResolver.findExecutable()
+        },
         now: @escaping @Sendable () -> Date = { .now },
         runUsage: (@Sendable (URL) async -> Data?)? = nil,
         configurationDetector: @escaping @Sendable () async -> ClaudeConfigurationStatus = {
@@ -58,6 +62,7 @@ public actor ClaudeCLIUsageProvider: HarnessUsageProviding {
         }
     ) {
         self.executable = executable
+        self.executableResolver = executableResolver
         self.now = now
         self.runUsage = runUsage ?? { executable in
             await ClaudeCLIUsageProvider.runUsageCommand(executable: executable)
@@ -66,8 +71,19 @@ public actor ClaudeCLIUsageProvider: HarnessUsageProviding {
     }
 
     public func fetchUsage() async throws -> HarnessUsageSnapshot {
-        guard let executable else { throw ClaudeUsageError.cliUnavailable }
-        guard let data = await runUsage(executable) else {
+        guard let executable = availableExecutable() else {
+            throw ClaudeUsageError.cliUnavailable
+        }
+
+        var data = await runUsage(executable)
+        if data == nil,
+           let replacement = executableResolver(),
+           replacement != executable {
+            self.executable = replacement
+            data = await runUsage(replacement)
+        }
+
+        guard let data else {
             throw await failureForCurrentConfiguration()
         }
 
@@ -79,6 +95,16 @@ public actor ClaudeCLIUsageProvider: HarnessUsageProviding {
             }
             throw error
         }
+    }
+
+    private func availableExecutable() -> URL? {
+        if let executable,
+           FileManager.default.isExecutableFile(atPath: executable.path) {
+            return executable
+        }
+        let replacement = executableResolver()
+        executable = replacement
+        return replacement
     }
 
     public static func decode(
