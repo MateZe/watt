@@ -4,7 +4,7 @@ import Foundation
 
 @MainActor
 public final class UsageStore: ObservableObject {
-    private static let cacheVersion = 2
+    private static let cacheVersion = 3
 
     @Published public private(set) var states: [HarnessUsageState] = []
     @Published public private(set) var isRefreshing = false

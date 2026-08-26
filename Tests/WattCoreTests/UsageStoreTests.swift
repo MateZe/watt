@@ -201,7 +201,7 @@ struct UsageStoreTests {
         #expect(!relaunchedStore.isRefreshing)
     }
 
-    @Test func ignoresLegacyCacheWhenProviderBehaviorChanges() async throws {
+    @Test func ignoresPreviousCacheVersionWhenProviderBehaviorChanges() async throws {
         let directory = FileManager.default.temporaryDirectory
             .appendingPathComponent("watt-tests-\(UUID().uuidString)", isDirectory: true)
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
@@ -209,6 +209,7 @@ struct UsageStoreTests {
         let cacheURL = directory.appendingPathComponent("usage-cache.json")
         try Data(#"""
         {
+          "version": 2,
           "entries": [{
             "state": {
               "harness": "claude",
