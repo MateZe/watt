@@ -59,9 +59,12 @@ struct MenuBarView: View {
             Button {
                 store.refresh(reason: .manual)
             } label: {
-                Image(systemName: "arrow.clockwise")
-                    .rotationEffect(.degrees(store.isRefreshing ? 360 : 0))
-                    .animation(store.isRefreshing ? .linear(duration: 0.8).repeatForever(autoreverses: false) : .default, value: store.isRefreshing)
+                TimelineView(.animation(minimumInterval: 1.0 / 30.0, paused: !store.isRefreshing)) { context in
+                    let progress = context.date.timeIntervalSinceReferenceDate
+                        .truncatingRemainder(dividingBy: 0.8) / 0.8
+                    Image(systemName: "arrow.clockwise")
+                        .rotationEffect(.degrees(store.isRefreshing ? progress * 360 : 0))
+                }
             }
             .buttonStyle(.plain)
             .disabled(store.isRefreshing || !hasEnabledProvider)
