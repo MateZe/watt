@@ -138,7 +138,7 @@ public actor CodexAppServerUsageProvider: HarnessUsageProviding {
 
         var limits: [UsageLimit] = []
         if let fiveHour {
-            limits.append(Self.makeLimit(id: "five-hour", window: fiveHour, fallbackName: "5 hour"))
+            limits.append(Self.makeLimit(id: "five-hour", window: fiveHour, fallbackName: "Session"))
         }
         if let weekly {
             limits.append(Self.makeLimit(id: "weekly", window: weekly, fallbackName: "Weekly"))
@@ -163,6 +163,7 @@ public actor CodexAppServerUsageProvider: HarnessUsageProviding {
 
     private static func windowName(minutes: Int?) -> String? {
         guard let minutes else { return nil }
+        if minutes == 300 { return "Session" }
         if minutes == 10_080 { return "Weekly" }
         if minutes % 1_440 == 0 { return "\(minutes / 1_440) day" }
         if minutes % 60 == 0 { return "\(minutes / 60) hour" }

@@ -21,7 +21,7 @@ struct CodexUsageProviderTests {
         let snapshot = try CodexAppServerUsageProvider.decodeRateLimits(data, fetchedAt: fetchedAt)
         #expect(snapshot.harness == .codex)
         #expect(snapshot.limits.map(\.id) == ["five-hour", "weekly"])
-        #expect(snapshot.limits.map(\.name) == ["5 hour", "Weekly"])
+        #expect(snapshot.limits.map(\.name) == ["Session", "Weekly"])
         #expect(snapshot.limits.map(\.percentage) == [23.4, 47])
         #expect(snapshot.limits.allSatisfy { $0.resetDate != nil })
         #expect(snapshot.fetchedAt == fetchedAt)
@@ -78,7 +78,7 @@ struct CodexUsageProviderTests {
 
         let snapshot = try CodexAppServerUsageProvider.decodeRateLimits(data)
         #expect(snapshot.limits.map(\.id) == ["five-hour", "weekly"])
-        #expect(snapshot.limits.map(\.name) == ["5 hour", "Weekly"])
+        #expect(snapshot.limits.map(\.name) == ["Session", "Weekly"])
     }
 
     @Test func rejectsResponseWithoutUsageWindows() {

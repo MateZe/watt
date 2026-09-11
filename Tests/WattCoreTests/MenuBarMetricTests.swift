@@ -23,7 +23,7 @@ struct MenuBarMetricTests {
         #expect(MenuBarMetric.weekly.limit(in: snapshot)?.id == "weekly")
         #expect(MenuBarMetric.session.limit(in: snapshot) == nil)
         #expect(MenuBarMetric.fable.limit(in: snapshot) == nil)
-        #expect(MenuBarMetric.fiveHour.name(for: .codex) == "5 hour")
+        #expect(MenuBarMetric.fiveHour.name(for: .codex) == "Session")
         #expect(MenuBarMetric.weekly.name(for: .codex) == "Weekly")
         #expect(MenuBarMetric.supported(for: .codex) == [.fiveHour, .weekly])
     }
