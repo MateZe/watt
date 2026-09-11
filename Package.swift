@@ -15,6 +15,7 @@ let package = Package(
             name: "Watt",
             dependencies: ["WattCore"],
             path: "Sources/Watt",
+            resources: [.process("Resources")],
             linkerSettings: [
                 .linkedFramework("AppKit"),
                 .linkedFramework("ServiceManagement"),

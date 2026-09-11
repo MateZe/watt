@@ -5,7 +5,10 @@ import WattCore
 
 struct MenuBarView: View {
     @ObservedObject var store: UsageStore
+    @Binding var claudeTrackingEnabled: Bool
+    @Binding var codexTrackingEnabled: Bool
     @Binding var claudeMenuBarMetric: String
+    @Binding var codexMenuBarMetric: String
     @State private var launchAtLogin = SMAppService.mainApp.status == .enabled
     @State private var loginItemMessage: String?
 
@@ -86,13 +89,7 @@ struct MenuBarView: View {
         VStack(alignment: .leading, spacing: 15) {
             HStack(spacing: 7) {
                 HarnessMark(harness: state.harness)
-                if state.harness == .claude {
-                    claudeMetricPicker
-                } else {
-                    Text("Weekly")
-                        .font(.system(size: 10.5, weight: .medium))
-                        .foregroundStyle(.secondary)
-                }
+                metricPicker(for: state.harness)
                 Spacer()
                 if let warning = store.warningMessage(for: state) {
                     Image(systemName: "exclamationmark.triangle.fill")
@@ -138,13 +135,19 @@ struct MenuBarView: View {
     }
 
     private var emptyState: some View {
-        VStack(spacing: 9) {
-            Image(systemName: store.hasCompletedDiscovery ? "bolt.slash" : "bolt.badge.clock")
+        let trackingEnabled = claudeTrackingEnabled || codexTrackingEnabled
+
+        return VStack(spacing: 9) {
+            Image(systemName: trackingEnabled && !store.hasCompletedDiscovery ? "bolt.badge.clock" : "bolt.slash")
                 .font(.system(size: 22, weight: .light))
                 .foregroundStyle(.secondary)
-            Text(store.hasCompletedDiscovery ? "No supported harnesses found" : "Looking for Claude and Codex…")
+            Text(emptyStateTitle)
                 .font(.system(size: 12.5, weight: .medium))
-            if store.hasCompletedDiscovery {
+            if !trackingEnabled {
+                Text("Enable a provider below to resume tracking.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            } else if store.hasCompletedDiscovery {
                 Text("Sign in with Claude Code or Codex, then refresh.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
@@ -156,6 +159,13 @@ struct MenuBarView: View {
 
     private var controls: some View {
         VStack(alignment: .leading, spacing: 7) {
+            HStack(spacing: 14) {
+                Toggle("Track Claude", isOn: trackingBinding(for: .claude))
+                Toggle("Track Codex", isOn: trackingBinding(for: .codex))
+            }
+            .toggleStyle(.checkbox)
+            .controlSize(.small)
+
             HStack(spacing: 8) {
                 Toggle(isOn: Binding(get: { launchAtLogin }, set: setLaunchAtLogin)) {
                     Label("Launch at Login", systemImage: "power")
@@ -180,25 +190,25 @@ struct MenuBarView: View {
         .font(.system(size: 12.5))
     }
 
-    private var claudeMetricPicker: some View {
-        let selected = MenuBarMetric(rawValue: claudeMenuBarMetric) ?? .weekly
+    private func metricPicker(for harness: HarnessKind) -> some View {
+        let selected = selectedMetric(for: harness)
 
         return Menu {
-            ForEach(MenuBarMetric.allCases) { metric in
+            ForEach(MenuBarMetric.supported(for: harness)) { metric in
                 Button {
-                    claudeMenuBarMetric = metric.rawValue
+                    setSelectedMetric(metric, for: harness)
                 } label: {
                     if metric == selected {
-                        Label(metric.name(for: .claude), systemImage: "checkmark")
+                        Label(metric.name(for: harness), systemImage: "checkmark")
                     } else {
-                        Text(metric.name(for: .claude))
+                        Text(metric.name(for: harness))
                     }
                 }
             }
         } label: {
             HStack(spacing: 3) {
                 Image(systemName: "menubar.rectangle")
-                Text(selected.name(for: .claude))
+                Text(selected.name(for: harness))
             }
             .font(.system(size: 10.5, weight: .medium))
             .foregroundStyle(.secondary)
@@ -206,6 +216,39 @@ struct MenuBarView: View {
         .menuStyle(.borderlessButton)
         .fixedSize()
         .help("Metric shown in the menu bar")
+    }
+
+    private var emptyStateTitle: String {
+        if !claudeTrackingEnabled && !codexTrackingEnabled { return "Usage tracking is off" }
+        return store.hasCompletedDiscovery ? "No supported harnesses found" : "Looking for Claude and Codex…"
+    }
+
+    private func trackingBinding(for harness: HarnessKind) -> Binding<Bool> {
+        Binding(
+            get: { harness == .claude ? claudeTrackingEnabled : codexTrackingEnabled },
+            set: { enabled in
+                if harness == .claude {
+                    claudeTrackingEnabled = enabled
+                } else {
+                    codexTrackingEnabled = enabled
+                }
+                store.setTracking(enabled, for: harness)
+            }
+        )
+    }
+
+    private func selectedMetric(for harness: HarnessKind) -> MenuBarMetric {
+        let rawValue = harness == .claude ? claudeMenuBarMetric : codexMenuBarMetric
+        let metric = MenuBarMetric(rawValue: rawValue) ?? .weekly
+        return MenuBarMetric.supported(for: harness).contains(metric) ? metric : .weekly
+    }
+
+    private func setSelectedMetric(_ metric: MenuBarMetric, for harness: HarnessKind) {
+        if harness == .claude {
+            claudeMenuBarMetric = metric.rawValue
+        } else {
+            codexMenuBarMetric = metric.rawValue
+        }
     }
 
     private func refreshLoginItemStatus() {

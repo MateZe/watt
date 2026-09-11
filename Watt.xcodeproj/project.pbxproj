@@ -18,6 +18,8 @@
 		B10000000000000000000004 /* UsageFormatting.swift in Sources */ = {isa = PBXBuildFile; fileRef = B20000000000000000000004; };
 		B10000000000000000000005 /* MenuBarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B20000000000000000000005; };
 		B10000000000000000000006 /* Watt.icns in Resources */ = {isa = PBXBuildFile; fileRef = B20000000000000000000006; };
+		B10000000000000000000007 /* claude.svg in Resources */ = {isa = PBXBuildFile; fileRef = B20000000000000000000007; };
+		B10000000000000000000008 /* chatgpt.svg in Resources */ = {isa = PBXBuildFile; fileRef = B20000000000000000000008; };
 		C10000000000000000000001 /* ClaudeUsageProviderTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C20000000000000000000001; };
 		C10000000000000000000002 /* CredentialProviderTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C20000000000000000000002; };
 		C10000000000000000000003 /* RefreshPolicyTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C20000000000000000000003; };
@@ -59,6 +61,8 @@
 		B20000000000000000000004 /* UsageFormatting.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UsageFormatting.swift; sourceTree = "<group>"; };
 		B20000000000000000000005 /* MenuBarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MenuBarView.swift; sourceTree = "<group>"; };
 		B20000000000000000000006 /* Watt.icns */ = {isa = PBXFileReference; lastKnownFileType = image.icns; path = Watt.icns; sourceTree = "<group>"; };
+		B20000000000000000000007 /* claude.svg */ = {isa = PBXFileReference; lastKnownFileType = image.svg; path = Sources/Watt/Resources/claude.svg; sourceTree = SOURCE_ROOT; };
+		B20000000000000000000008 /* chatgpt.svg */ = {isa = PBXFileReference; lastKnownFileType = image.svg; path = Sources/Watt/Resources/chatgpt.svg; sourceTree = SOURCE_ROOT; };
 		C20000000000000000000001 /* ClaudeUsageProviderTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClaudeUsageProviderTests.swift; sourceTree = "<group>"; };
 		C20000000000000000000002 /* CredentialProviderTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CredentialProviderTests.swift; sourceTree = "<group>"; };
 		C20000000000000000000003 /* RefreshPolicyTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RefreshPolicyTests.swift; sourceTree = "<group>"; };
@@ -87,7 +91,7 @@
 		F40000000000000000000008 /* UI */ = {isa = PBXGroup; children = (B20000000000000000000003, B20000000000000000000005, B20000000000000000000004, B20000000000000000000002, ); path = UI; sourceTree = "<group>"; };
 		F40000000000000000000006 /* Tests */ = {isa = PBXGroup; children = (F4000000000000000000000A, ); path = Tests; sourceTree = "<group>"; };
 		F4000000000000000000000A /* WattCoreTests */ = {isa = PBXGroup; children = (C20000000000000000000001, C20000000000000000000004, C20000000000000000000006, C20000000000000000000002, C20000000000000000000003, C20000000000000000000005, ); path = WattCoreTests; sourceTree = "<group>"; };
-		F4000000000000000000000B /* Resources */ = {isa = PBXGroup; children = (B20000000000000000000006, ); path = Resources; sourceTree = "<group>"; };
+		F4000000000000000000000B /* Resources */ = {isa = PBXGroup; children = (B20000000000000000000006, B20000000000000000000007, B20000000000000000000008, ); path = Resources; sourceTree = "<group>"; };
 		F40000000000000000000007 /* Products */ = {isa = PBXGroup; children = (D20000000000000000000002, D20000000000000000000001, D20000000000000000000003, ); name = Products; sourceTree = "<group>"; };
 /* End PBXGroup section */
 
@@ -108,7 +112,7 @@
 /* End PBXSourcesBuildPhase section */
 
 /* Begin PBXResourcesBuildPhase section */
-		F30000000000000000000005 = {isa = PBXResourcesBuildPhase; buildActionMask = 2147483647; files = (B10000000000000000000006, ); runOnlyForDeploymentPostprocessing = 0; };
+		F30000000000000000000005 = {isa = PBXResourcesBuildPhase; buildActionMask = 2147483647; files = (B10000000000000000000006, B10000000000000000000007, B10000000000000000000008, ); runOnlyForDeploymentPostprocessing = 0; };
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXTargetDependency section */

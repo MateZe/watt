@@ -4,6 +4,7 @@ import WattCore
 struct MenuBarGlyph: View {
     let states: [HarnessUsageState]
     let claudeSelection: MenuBarMetric
+    let codexSelection: MenuBarMetric
 
     var body: some View {
         HStack(spacing: 5) {
@@ -43,7 +44,7 @@ struct MenuBarGlyph: View {
     }
 
     private func selection(for harness: HarnessKind) -> MenuBarMetric {
-        harness == .claude ? claudeSelection : .weekly
+        harness == .claude ? claudeSelection : codexSelection
     }
 
     private var detailText: String {
