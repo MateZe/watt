@@ -91,6 +91,7 @@ struct WattApp: App {
             )
         }
         .menuBarExtraStyle(.window)
+        .windowResizability(.contentSize)
     }
 
     private static var liveProviders: [any HarnessUsageProviding] {

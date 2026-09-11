@@ -31,7 +31,7 @@ struct MenuBarView: View {
                 .padding(.vertical, 10)
         }
         .frame(width: 330)
-        .background(.background)
+        .fixedSize(horizontal: false, vertical: true)
         // MenuBarExtra's window can inherit text-selection cursor regions from
         // its SwiftUI content. Disable selection semantically, then explicitly
         // claim the standard pointer on systems that support pointer styles.
