@@ -1,3 +1,4 @@
+import AppKit
 import SwiftUI
 import WattCore
 
@@ -89,10 +90,13 @@ struct HarnessMark: View {
 
     var body: some View {
         HStack(spacing: 6) {
-            Image(systemName: harness == .claude ? "sparkles" : "terminal")
-                .font(.system(size: 11, weight: .semibold))
+            providerLogo
+                .renderingMode(.template)
+                .resizable()
+                .scaledToFit()
                 .foregroundStyle(WattPalette.accent(for: harness))
-                .frame(width: 14)
+                .frame(width: 14, height: 14)
+                .accessibilityHidden(true)
             if showsName {
                 Text(harness.name)
                     .font(.system(size: 12, weight: .semibold))
@@ -100,5 +104,22 @@ struct HarnessMark: View {
             }
         }
         .accessibilityElement(children: .combine)
+    }
+
+    private var providerLogoBundle: Bundle {
+        #if SWIFT_PACKAGE
+        Bundle.module
+        #else
+        Bundle.main
+        #endif
+    }
+
+    private var providerLogo: Image {
+        let name = harness == .claude ? "claude" : "chatgpt"
+        guard let url = providerLogoBundle.url(forResource: name, withExtension: "svg"),
+              let image = NSImage(contentsOf: url) else {
+            return Image(systemName: "questionmark.circle")
+        }
+        return Image(nsImage: image)
     }
 }

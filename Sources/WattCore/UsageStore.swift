@@ -12,6 +12,7 @@ public final class UsageStore: ObservableObject {
     @Published public private(set) var hasCompletedDiscovery = false
 
     private let providers: [any HarnessUsageProviding]
+    private var enabledHarnesses: Set<HarnessKind>
     private var policies: [HarnessKind: RefreshPolicy]
     private var nextScheduledRefresh: [HarnessKind: Date] = [:]
     private var cooldownUntil: [HarnessKind: Date] = [:]
@@ -31,6 +32,7 @@ public final class UsageStore: ObservableObject {
 
     public init(
         providers: [any HarnessUsageProviding],
+        enabledHarnesses: Set<HarnessKind> = Set(HarnessKind.allCases),
         policies: [HarnessKind: RefreshPolicy] = [.claude: .claude, .codex: .codex],
         now: @escaping @Sendable () -> Date = { .now },
         jitteredDelay: @escaping @Sendable (TimeInterval) -> TimeInterval = {
@@ -39,21 +41,25 @@ public final class UsageStore: ObservableObject {
         cacheURL: URL? = nil
     ) {
         self.providers = providers
+        self.enabledHarnesses = enabledHarnesses
         self.policies = policies
         self.now = now
         self.jitteredDelay = jitteredDelay
         self.cacheURL = cacheURL
         if let cacheURL, let cache = Self.loadCache(from: cacheURL) {
             states = cache.entries.map(\.state)
+                .filter { enabledHarnesses.contains($0.harness) }
                 .sorted { $0.harness.sortOrder < $1.harness.sortOrder }
             nextScheduledRefresh = Dictionary(uniqueKeysWithValues: cache.entries.compactMap { entry in
-                entry.nextScheduledRefresh.map { (entry.state.harness, $0) }
+                guard enabledHarnesses.contains(entry.state.harness) else { return nil }
+                return entry.nextScheduledRefresh.map { (entry.state.harness, $0) }
             })
             cooldownUntil = Dictionary(uniqueKeysWithValues: cache.entries.compactMap { entry in
-                entry.cooldownUntil.map { (entry.state.harness, $0) }
+                guard enabledHarnesses.contains(entry.state.harness) else { return nil }
+                return entry.cooldownUntil.map { (entry.state.harness, $0) }
             })
-            hasCompletedDiscovery = !states.isEmpty
         }
+        hasCompletedDiscovery = enabledHarnesses.isEmpty || !states.isEmpty
         wakeObserver = NSWorkspace.shared.notificationCenter.addObserver(
             forName: NSWorkspace.didWakeNotification,
             object: nil,
@@ -101,6 +107,23 @@ public final class UsageStore: ObservableObject {
         refresh(reason: .launch)
     }
 
+    public func setTracking(_ enabled: Bool, for harness: HarnessKind) {
+        if enabled {
+            guard enabledHarnesses.insert(harness).inserted else { return }
+            nextScheduledRefresh[harness] = .distantPast
+            refresh(reason: .scheduled)
+        } else {
+            guard enabledHarnesses.remove(harness) != nil else { return }
+            states.removeAll { $0.harness == harness }
+            nextScheduledRefresh.removeValue(forKey: harness)
+            cooldownUntil.removeValue(forKey: harness)
+            refreshingHarnesses.remove(harness)
+            hasCompletedDiscovery = true
+            saveCache()
+            scheduleNextRefresh()
+        }
+    }
+
     public func refresh(reason: RefreshReason) {
         let currentDate = now()
         if reason == .manual {
@@ -109,6 +132,7 @@ public final class UsageStore: ObservableObject {
         guard refreshTask == nil else { return }
 
         let selectedProviders = providers.filter { provider in
+            guard enabledHarnesses.contains(provider.harness) else { return false }
             switch reason {
             case .launch:
                 return (nextScheduledRefresh[provider.harness] ?? .distantPast) <= currentDate
@@ -165,9 +189,11 @@ public final class UsageStore: ObservableObject {
         for outcome in outcomes {
             switch outcome {
             case let .success(snapshot):
+                guard enabledHarnesses.contains(snapshot.harness) else { continue }
                 next[snapshot.harness] = HarnessUsageState(harness: snapshot.harness, snapshot: snapshot)
                 recordSuccess(for: snapshot.harness, at: currentDate)
             case let .failure(harness, failure):
+                guard enabledHarnesses.contains(harness) else { continue }
                 if failure.isNotConfigured {
                     next.removeValue(forKey: harness)
                 } else {
@@ -215,7 +241,7 @@ public final class UsageStore: ObservableObject {
 
     private func scheduleNextRefresh() {
         scheduleTask?.cancel()
-        let configuredHarnesses = Set(providers.map(\.harness))
+        let configuredHarnesses = Set(providers.map(\.harness)).intersection(enabledHarnesses)
         let nextDate = nextScheduledRefresh
             .filter { configuredHarnesses.contains($0.key) }
             .map(\.value)

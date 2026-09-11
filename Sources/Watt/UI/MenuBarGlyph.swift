@@ -4,6 +4,7 @@ import WattCore
 struct MenuBarGlyph: View {
     let states: [HarnessUsageState]
     let claudeSelection: MenuBarMetric
+    let codexSelection: MenuBarMetric
 
     var body: some View {
         HStack(spacing: 5) {
@@ -24,8 +25,8 @@ struct MenuBarGlyph: View {
     private var statusText: Text {
         guard !states.isEmpty else { return Text("Watt") }
 
-        let sharesWeeklyMetric = states.count > 1
-            && states.allSatisfy { selection(for: $0.harness) == .weekly }
+        let sharesMetric = states.count > 1
+            && Set(states.map { selection(for: $0.harness).name(for: $0.harness) }).count == 1
         var text = Text("")
         for (index, state) in states.enumerated() {
             if index > 0 { text = text + Text("  ·  ") }
@@ -33,7 +34,7 @@ struct MenuBarGlyph: View {
             let value = selectedLimit(for: state)?.roundedPercentage.map { "\($0)%" } ?? "Unavailable"
             text = text
                 + Text(state.harness.name).bold()
-                + Text(sharesWeeklyMetric ? " \(value)" : " \(metric.name(for: state.harness)) \(value)")
+                + Text(sharesMetric ? " \(value)" : " \(metric.name(for: state.harness)) \(value)")
         }
         return text
     }
@@ -43,7 +44,7 @@ struct MenuBarGlyph: View {
     }
 
     private func selection(for harness: HarnessKind) -> MenuBarMetric {
-        harness == .claude ? claudeSelection : .weekly
+        harness == .claude ? claudeSelection : codexSelection
     }
 
     private var detailText: String {

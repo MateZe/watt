@@ -4,6 +4,70 @@ import Testing
 
 @MainActor
 struct UsageStoreTests {
+    @Test func refreshesOnlyEnabledProviders() async {
+        let claude = SequencedProvider(
+            harness: .claude,
+            results: [.success(.demo(for: .claude))]
+        )
+        let codex = SequencedProvider(
+            harness: .codex,
+            results: [.success(.demo(for: .codex))]
+        )
+        let store = UsageStore(
+            providers: [claude, codex],
+            enabledHarnesses: [.codex]
+        )
+
+        store.start()
+        while store.isRefreshing { await Task.yield() }
+
+        #expect(await claude.fetchCount == 0)
+        #expect(await codex.fetchCount == 1)
+        #expect(store.states.map(\.harness) == [.codex])
+    }
+
+    @Test func ignoresDisabledProviderAlreadyInFlight() async {
+        let claude = BlockingProvider(harness: .claude)
+        let codex = SequencedProvider(
+            harness: .codex,
+            results: [.success(.demo(for: .codex))]
+        )
+        let store = UsageStore(providers: [claude, codex])
+
+        store.start()
+        while await claude.fetchCount == 0 { await Task.yield() }
+        store.setTracking(false, for: .claude)
+        await claude.release()
+        while store.isRefreshing { await Task.yield() }
+
+        #expect(store.states.map(\.harness) == [.codex])
+        #expect(await codex.fetchCount == 1)
+    }
+
+    @Test func enablingProviderRefreshesOnlyThatProvider() async {
+        let claude = SequencedProvider(
+            harness: .claude,
+            results: [.success(.demo(for: .claude))]
+        )
+        let codex = SequencedProvider(
+            harness: .codex,
+            results: [.success(.demo(for: .codex))]
+        )
+        let store = UsageStore(
+            providers: [claude, codex],
+            enabledHarnesses: [.codex]
+        )
+
+        store.start()
+        while store.isRefreshing { await Task.yield() }
+        store.setTracking(true, for: .claude)
+        while store.isRefreshing { await Task.yield() }
+
+        #expect(await claude.fetchCount == 1)
+        #expect(await codex.fetchCount == 1)
+        #expect(store.states.map(\.harness) == [.claude, .codex])
+    }
+
     @Test func keepsConfiguredProvidersAndSortsThemConsistently() async {
         let store = UsageStore(providers: [
             StubProvider(harness: .codex, result: .success(.demo(for: .codex))),
@@ -296,6 +360,27 @@ private actor SequencedProvider: HarnessUsageProviding {
     func fetchUsage() async throws -> HarnessUsageSnapshot {
         fetchCount += 1
         return try results.removeFirst().get()
+    }
+}
+
+private actor BlockingProvider: HarnessUsageProviding {
+    nonisolated let harness: HarnessKind
+    private var continuation: CheckedContinuation<Void, Never>?
+    private(set) var fetchCount = 0
+
+    init(harness: HarnessKind) {
+        self.harness = harness
+    }
+
+    func fetchUsage() async throws -> HarnessUsageSnapshot {
+        fetchCount += 1
+        await withCheckedContinuation { continuation = $0 }
+        return .demo(for: harness)
+    }
+
+    func release() {
+        continuation?.resume()
+        continuation = nil
     }
 }
 

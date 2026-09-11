@@ -23,6 +23,7 @@ public enum HarnessKind: String, CaseIterable, Codable, Sendable, Identifiable {
 
 public enum MenuBarMetric: String, CaseIterable, Codable, Sendable, Identifiable {
     case session
+    case fiveHour
     case weekly
     case fable
 
@@ -31,8 +32,16 @@ public enum MenuBarMetric: String, CaseIterable, Codable, Sendable, Identifiable
     public func name(for harness: HarnessKind) -> String {
         switch self {
         case .session: "Session"
+        case .fiveHour: "Session"
         case .weekly: "Weekly"
         case .fable: "Fable"
+        }
+    }
+
+    public static func supported(for harness: HarnessKind) -> [MenuBarMetric] {
+        switch harness {
+        case .claude: [.session, .weekly, .fable]
+        case .codex: [.fiveHour, .weekly]
         }
     }
 
@@ -44,11 +53,15 @@ public enum MenuBarMetric: String, CaseIterable, Codable, Sendable, Identifiable
             snapshot.limits.first { $0.id == "weekly" }
         case (.claude, .fable):
             snapshot.limits.first { $0.id == "fable" }
+        case (.codex, .fiveHour):
+            snapshot.limits.first { $0.id == "five-hour" }
+                ?? snapshot.limits.first { $0.id == "primary" }
+                ?? snapshot.limits.first { $0.name.caseInsensitiveCompare("5 hour") == .orderedSame }
         case (.codex, .weekly):
             snapshot.limits.first { $0.id == "weekly" }
                 ?? snapshot.limits.first { $0.id == "secondary" }
                 ?? snapshot.limits.first { $0.name.caseInsensitiveCompare("Weekly") == .orderedSame }
-        case (.codex, .session), (.codex, .fable):
+        case (.claude, .fiveHour), (.codex, .session), (.codex, .fable):
             nil
         }
     }
@@ -101,7 +114,7 @@ public struct HarnessUsageSnapshot: Codable, Equatable, Sendable, Identifiable {
             HarnessUsageSnapshot(
                 harness: .codex,
                 limits: [
-                    UsageLimit(id: "five-hour", name: "5 hour", percentage: 23, resetDate: date.addingTimeInterval(1.6 * 3600)),
+                    UsageLimit(id: "five-hour", name: "Session", percentage: 23, resetDate: date.addingTimeInterval(1.6 * 3600)),
                     UsageLimit(id: "weekly", name: "Weekly", percentage: 47, resetDate: date.addingTimeInterval(3.2 * 86_400)),
                 ],
                 fetchedAt: date

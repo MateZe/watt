@@ -16,13 +16,4 @@ enum UsageFormatting {
         }
         return "Resets \(relative) · \(exact)"
     }
-
-    static func updatedText(fetchedAt: Date?, isRefreshing: Bool, now: Date = .now) -> String {
-        if isRefreshing { return "Updating…" }
-        guard let fetchedAt else { return "Not updated yet" }
-        if abs(now.timeIntervalSince(fetchedAt)) < 10 { return "Updated just now" }
-        let formatter = RelativeDateTimeFormatter()
-        formatter.unitsStyle = .abbreviated
-        return "Updated \(formatter.localizedString(for: fetchedAt, relativeTo: now))"
-    }
 }

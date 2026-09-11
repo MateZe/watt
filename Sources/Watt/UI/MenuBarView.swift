@@ -5,7 +5,10 @@ import WattCore
 
 struct MenuBarView: View {
     @ObservedObject var store: UsageStore
+    @Binding var claudeTrackingEnabled: Bool
+    @Binding var codexTrackingEnabled: Bool
     @Binding var claudeMenuBarMetric: String
+    @Binding var codexMenuBarMetric: String
     @State private var launchAtLogin = SMAppService.mainApp.status == .enabled
     @State private var loginItemMessage: String?
 
@@ -28,7 +31,7 @@ struct MenuBarView: View {
                 .padding(.vertical, 10)
         }
         .frame(width: 330)
-        .background(.background)
+        .fixedSize(horizontal: false, vertical: true)
         // MenuBarExtra's window can inherit text-selection cursor regions from
         // its SwiftUI content. Disable selection semantically, then explicitly
         // claim the standard pointer on systems that support pointer styles.
@@ -56,149 +59,128 @@ struct MenuBarView: View {
             Button {
                 store.refresh(reason: .manual)
             } label: {
-                Image(systemName: "arrow.clockwise")
-                    .rotationEffect(.degrees(store.isRefreshing ? 360 : 0))
-                    .animation(store.isRefreshing ? .linear(duration: 0.8).repeatForever(autoreverses: false) : .default, value: store.isRefreshing)
+                TimelineView(.animation(minimumInterval: 1.0 / 30.0, paused: !store.isRefreshing)) { context in
+                    let progress = context.date.timeIntervalSinceReferenceDate
+                        .truncatingRemainder(dividingBy: 0.8) / 0.8
+                    Image(systemName: "arrow.clockwise")
+                        .rotationEffect(.degrees(store.isRefreshing ? progress * 360 : 0))
+                }
             }
             .buttonStyle(.plain)
-            .disabled(store.isRefreshing)
+            .disabled(store.isRefreshing || !hasEnabledProvider)
             .help("Refresh usage")
         }
     }
 
-    @ViewBuilder
     private var usage: some View {
-        if store.states.isEmpty {
-            emptyState
-        } else {
-            VStack(spacing: 14) {
-                ForEach(Array(store.states.enumerated()), id: \.element.id) { index, state in
-                    if index > 0 {
-                        Divider().opacity(0.42)
-                    }
-                    providerSection(state)
+        VStack(spacing: 14) {
+            ForEach(Array(HarnessKind.allCases.enumerated()), id: \.element) { index, harness in
+                if index > 0 {
+                    Divider().opacity(0.42)
                 }
+                providerSection(
+                    harness,
+                    state: store.states.first { $0.harness == harness }
+                )
             }
         }
     }
 
-    private func providerSection(_ state: HarnessUsageState) -> some View {
-        VStack(alignment: .leading, spacing: 15) {
+    private func providerSection(_ harness: HarnessKind, state: HarnessUsageState?) -> some View {
+        let trackingEnabled = isTrackingEnabled(harness)
+
+        return VStack(alignment: .leading, spacing: 15) {
             HStack(spacing: 7) {
-                HarnessMark(harness: state.harness)
-                if state.harness == .claude {
-                    claudeMetricPicker
-                } else {
-                    Text("Weekly")
-                        .font(.system(size: 10.5, weight: .medium))
-                        .foregroundStyle(.secondary)
-                }
+                HarnessMark(harness: harness)
+                Toggle("Track \(harness.name)", isOn: trackingBinding(for: harness))
+                    .labelsHidden()
+                    .toggleStyle(.switch)
+                    .controlSize(.mini)
+                    .help("Track \(harness.name) usage")
+                metricPicker(for: harness)
+                    .disabled(!trackingEnabled)
                 Spacer()
-                if let warning = store.warningMessage(for: state) {
+                if let state, let warning = store.warningMessage(for: state) {
                     Image(systemName: "exclamationmark.triangle.fill")
                         .font(.system(size: 9, weight: .semibold))
                         .foregroundStyle(.orange)
                         .help(warning)
                 }
-                Text(UsageFormatting.updatedText(
-                    fetchedAt: state.snapshot?.fetchedAt,
-                    isRefreshing: store.isRefreshing(state.harness)
-                ))
-                .font(.caption)
-                .foregroundStyle(.secondary)
-                .monospacedDigit()
             }
 
-            if let snapshot = state.snapshot {
-                HStack(alignment: .top, spacing: 10) {
-                    ForEach(snapshot.limits) { limit in
-                        VStack(spacing: 6) {
-                            UsageRing(limit: limit, harness: state.harness, size: 58, lineWidth: 4)
-                            Text(limit.name)
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                            Text(shortReset(for: limit))
-                                .font(.system(size: 11, weight: .medium))
-                                .foregroundStyle(.secondary)
-                                .lineLimit(1)
-                                .minimumScaleFactor(0.85)
-                                .help(UsageFormatting.resetText(for: limit))
+            if trackingEnabled {
+                if let snapshot = state?.snapshot {
+                    HStack(alignment: .top, spacing: 10) {
+                        ForEach(snapshot.limits) { limit in
+                            VStack(spacing: 6) {
+                                UsageRing(limit: limit, harness: harness, size: 58, lineWidth: 4)
+                                Text(limit.name)
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                                Text(shortReset(for: limit))
+                                    .font(.system(size: 11, weight: .medium))
+                                    .foregroundStyle(.secondary)
+                                    .lineLimit(1)
+                                    .minimumScaleFactor(0.85)
+                                    .help(UsageFormatting.resetText(for: limit))
+                            }
+                            .frame(maxWidth: .infinity)
                         }
-                        .frame(maxWidth: .infinity)
                     }
+                } else {
+                    Text(state?.failure?.message ?? unavailableMessage(for: harness))
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .frame(maxWidth: .infinity, minHeight: 48, alignment: .leading)
                 }
-            } else {
-                Text(state.failure?.message ?? "Loading \(state.harness.name) usage…")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
-                    .frame(maxWidth: .infinity, minHeight: 48, alignment: .leading)
             }
         }
-    }
-
-    private var emptyState: some View {
-        VStack(spacing: 9) {
-            Image(systemName: store.hasCompletedDiscovery ? "bolt.slash" : "bolt.badge.clock")
-                .font(.system(size: 22, weight: .light))
-                .foregroundStyle(.secondary)
-            Text(store.hasCompletedDiscovery ? "No supported harnesses found" : "Looking for Claude and Codex…")
-                .font(.system(size: 12.5, weight: .medium))
-            if store.hasCompletedDiscovery {
-                Text("Sign in with Claude Code or Codex, then refresh.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
-        }
-        .multilineTextAlignment(.center)
-        .frame(maxWidth: .infinity, minHeight: 92)
     }
 
     private var controls: some View {
-        VStack(alignment: .leading, spacing: 7) {
-            HStack(spacing: 8) {
-                Toggle(isOn: Binding(get: { launchAtLogin }, set: setLaunchAtLogin)) {
-                    Label("Launch at Login", systemImage: "power")
-                }
-                .toggleStyle(.checkbox)
-                .controlSize(.small)
-
-                if let loginItemMessage {
-                    Image(systemName: "exclamationmark.circle")
-                        .font(.system(size: 10))
-                        .foregroundStyle(.secondary)
-                        .help(loginItemMessage)
-                }
-
-                Spacer()
-
-                Button("Quit") { NSApplication.shared.terminate(nil) }
-                    .buttonStyle(.borderless)
-                    .keyboardShortcut("q")
+        HStack(spacing: 8) {
+            Toggle(isOn: Binding(get: { launchAtLogin }, set: setLaunchAtLogin)) {
+                Label("Launch at Login", systemImage: "power")
             }
+            .toggleStyle(.checkbox)
+            .controlSize(.small)
+
+            if let loginItemMessage {
+                Image(systemName: "exclamationmark.circle")
+                    .font(.system(size: 10))
+                    .foregroundStyle(.secondary)
+                    .help(loginItemMessage)
+            }
+
+            Spacer()
+
+            Button("Quit") { NSApplication.shared.terminate(nil) }
+                .buttonStyle(.borderless)
+                .keyboardShortcut("q")
         }
         .font(.system(size: 12.5))
     }
 
-    private var claudeMetricPicker: some View {
-        let selected = MenuBarMetric(rawValue: claudeMenuBarMetric) ?? .weekly
+    private func metricPicker(for harness: HarnessKind) -> some View {
+        let selected = selectedMetric(for: harness)
 
         return Menu {
-            ForEach(MenuBarMetric.allCases) { metric in
+            ForEach(MenuBarMetric.supported(for: harness)) { metric in
                 Button {
-                    claudeMenuBarMetric = metric.rawValue
+                    setSelectedMetric(metric, for: harness)
                 } label: {
                     if metric == selected {
-                        Label(metric.name(for: .claude), systemImage: "checkmark")
+                        Label(metric.name(for: harness), systemImage: "checkmark")
                     } else {
-                        Text(metric.name(for: .claude))
+                        Text(metric.name(for: harness))
                     }
                 }
             }
         } label: {
             HStack(spacing: 3) {
                 Image(systemName: "menubar.rectangle")
-                Text(selected.name(for: .claude))
+                Text(selected.name(for: harness))
             }
             .font(.system(size: 10.5, weight: .medium))
             .foregroundStyle(.secondary)
@@ -206,6 +188,48 @@ struct MenuBarView: View {
         .menuStyle(.borderlessButton)
         .fixedSize()
         .help("Metric shown in the menu bar")
+    }
+
+    private var hasEnabledProvider: Bool {
+        claudeTrackingEnabled || codexTrackingEnabled
+    }
+
+    private func isTrackingEnabled(_ harness: HarnessKind) -> Bool {
+        harness == .claude ? claudeTrackingEnabled : codexTrackingEnabled
+    }
+
+    private func unavailableMessage(for harness: HarnessKind) -> String {
+        store.hasCompletedDiscovery
+            ? "\(harness.name) usage is unavailable."
+            : "Loading \(harness.name) usage…"
+    }
+
+    private func trackingBinding(for harness: HarnessKind) -> Binding<Bool> {
+        Binding(
+            get: { harness == .claude ? claudeTrackingEnabled : codexTrackingEnabled },
+            set: { enabled in
+                if harness == .claude {
+                    claudeTrackingEnabled = enabled
+                } else {
+                    codexTrackingEnabled = enabled
+                }
+                store.setTracking(enabled, for: harness)
+            }
+        )
+    }
+
+    private func selectedMetric(for harness: HarnessKind) -> MenuBarMetric {
+        let rawValue = harness == .claude ? claudeMenuBarMetric : codexMenuBarMetric
+        let metric = MenuBarMetric(rawValue: rawValue) ?? .weekly
+        return MenuBarMetric.supported(for: harness).contains(metric) ? metric : .weekly
+    }
+
+    private func setSelectedMetric(_ metric: MenuBarMetric, for harness: HarnessKind) {
+        if harness == .claude {
+            claudeMenuBarMetric = metric.rawValue
+        } else {
+            codexMenuBarMetric = metric.rawValue
+        }
     }
 
     private func refreshLoginItemStatus() {

@@ -2,11 +2,21 @@ import AppKit
 import SwiftUI
 import WattCore
 
+private enum PreferenceKey {
+    static let claudeTracking = "tracking.claude.enabled"
+    static let codexTracking = "tracking.codex.enabled"
+    static let claudeMetric = "menuBar.claude.metric"
+    static let codexMetric = "menuBar.codex.metric"
+}
+
 @main
 struct WattApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
     @StateObject private var store: UsageStore
-    @AppStorage("menuBar.claude.metric") private var claudeMenuBarMetric = MenuBarMetric.weekly.rawValue
+    @AppStorage(PreferenceKey.claudeTracking) private var claudeTrackingEnabled = true
+    @AppStorage(PreferenceKey.codexTracking) private var codexTrackingEnabled = true
+    @AppStorage(PreferenceKey.claudeMetric) private var claudeMenuBarMetric = MenuBarMetric.weekly.rawValue
+    @AppStorage(PreferenceKey.codexMetric) private var codexMenuBarMetric = MenuBarMetric.weekly.rawValue
 
     init() {
         ProcessInfo.processInfo.disableAutomaticTermination("Watt keeps its menu-bar item available")
@@ -41,7 +51,16 @@ struct WattApp: App {
         cacheURL = UsageStore.defaultCacheURL
         #endif
 
-        let store = UsageStore(providers: providers, cacheURL: cacheURL)
+        let defaults = UserDefaults.standard
+        let enabledHarnesses = Set(HarnessKind.allCases.filter { harness in
+            let key = harness == .claude ? PreferenceKey.claudeTracking : PreferenceKey.codexTracking
+            return defaults.object(forKey: key) as? Bool ?? true
+        })
+        let store = UsageStore(
+            providers: providers,
+            enabledHarnesses: enabledHarnesses,
+            cacheURL: cacheURL
+        )
         _store = StateObject(wrappedValue: store)
 
         Task { @MainActor in
@@ -59,15 +78,20 @@ struct WattApp: App {
         MenuBarExtra {
             MenuBarView(
                 store: store,
-                claudeMenuBarMetric: $claudeMenuBarMetric
+                claudeTrackingEnabled: $claudeTrackingEnabled,
+                codexTrackingEnabled: $codexTrackingEnabled,
+                claudeMenuBarMetric: $claudeMenuBarMetric,
+                codexMenuBarMetric: $codexMenuBarMetric
             )
         } label: {
             MenuBarGlyph(
                 states: store.states,
-                claudeSelection: MenuBarMetric(rawValue: claudeMenuBarMetric) ?? .weekly
+                claudeSelection: MenuBarMetric(rawValue: claudeMenuBarMetric) ?? .weekly,
+                codexSelection: MenuBarMetric(rawValue: codexMenuBarMetric) ?? .weekly
             )
         }
         .menuBarExtraStyle(.window)
+        .windowResizability(.contentSize)
     }
 
     private static var liveProviders: [any HarnessUsageProviding] {
@@ -97,7 +121,10 @@ private final class DebugPopoverPresenter {
         panel.hasShadow = true
         panel.contentView = NSHostingView(rootView: MenuBarView(
             store: store,
-            claudeMenuBarMetric: .constant(MenuBarMetric.weekly.rawValue)
+            claudeTrackingEnabled: .constant(true),
+            codexTrackingEnabled: .constant(true),
+            claudeMenuBarMetric: .constant(MenuBarMetric.weekly.rawValue),
+            codexMenuBarMetric: .constant(MenuBarMetric.weekly.rawValue)
         ))
         panel.center()
         panel.orderFrontRegardless()
