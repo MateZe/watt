@@ -64,128 +64,97 @@ struct MenuBarView: View {
                     .animation(store.isRefreshing ? .linear(duration: 0.8).repeatForever(autoreverses: false) : .default, value: store.isRefreshing)
             }
             .buttonStyle(.plain)
-            .disabled(store.isRefreshing)
+            .disabled(store.isRefreshing || !hasEnabledProvider)
             .help("Refresh usage")
         }
     }
 
-    @ViewBuilder
     private var usage: some View {
-        if store.states.isEmpty {
-            emptyState
-        } else {
-            VStack(spacing: 14) {
-                ForEach(Array(store.states.enumerated()), id: \.element.id) { index, state in
-                    if index > 0 {
-                        Divider().opacity(0.42)
-                    }
-                    providerSection(state)
+        VStack(spacing: 14) {
+            ForEach(Array(HarnessKind.allCases.enumerated()), id: \.element) { index, harness in
+                if index > 0 {
+                    Divider().opacity(0.42)
                 }
+                providerSection(
+                    harness,
+                    state: store.states.first { $0.harness == harness }
+                )
             }
         }
     }
 
-    private func providerSection(_ state: HarnessUsageState) -> some View {
-        VStack(alignment: .leading, spacing: 15) {
+    private func providerSection(_ harness: HarnessKind, state: HarnessUsageState?) -> some View {
+        let trackingEnabled = isTrackingEnabled(harness)
+
+        return VStack(alignment: .leading, spacing: 15) {
             HStack(spacing: 7) {
-                HarnessMark(harness: state.harness)
-                metricPicker(for: state.harness)
+                HarnessMark(harness: harness)
+                Toggle("Track \(harness.name)", isOn: trackingBinding(for: harness))
+                    .labelsHidden()
+                    .toggleStyle(.switch)
+                    .controlSize(.mini)
+                    .help("Track \(harness.name) usage")
+                metricPicker(for: harness)
+                    .disabled(!trackingEnabled)
                 Spacer()
-                if let warning = store.warningMessage(for: state) {
+                if let state, let warning = store.warningMessage(for: state) {
                     Image(systemName: "exclamationmark.triangle.fill")
                         .font(.system(size: 9, weight: .semibold))
                         .foregroundStyle(.orange)
                         .help(warning)
                 }
-                Text(UsageFormatting.updatedText(
-                    fetchedAt: state.snapshot?.fetchedAt,
-                    isRefreshing: store.isRefreshing(state.harness)
-                ))
-                .font(.caption)
-                .foregroundStyle(.secondary)
-                .monospacedDigit()
             }
 
-            if let snapshot = state.snapshot {
-                HStack(alignment: .top, spacing: 10) {
-                    ForEach(snapshot.limits) { limit in
-                        VStack(spacing: 6) {
-                            UsageRing(limit: limit, harness: state.harness, size: 58, lineWidth: 4)
-                            Text(limit.name)
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                            Text(shortReset(for: limit))
-                                .font(.system(size: 11, weight: .medium))
-                                .foregroundStyle(.secondary)
-                                .lineLimit(1)
-                                .minimumScaleFactor(0.85)
-                                .help(UsageFormatting.resetText(for: limit))
+            if trackingEnabled {
+                if let snapshot = state?.snapshot {
+                    HStack(alignment: .top, spacing: 10) {
+                        ForEach(snapshot.limits) { limit in
+                            VStack(spacing: 6) {
+                                UsageRing(limit: limit, harness: harness, size: 58, lineWidth: 4)
+                                Text(limit.name)
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                                Text(shortReset(for: limit))
+                                    .font(.system(size: 11, weight: .medium))
+                                    .foregroundStyle(.secondary)
+                                    .lineLimit(1)
+                                    .minimumScaleFactor(0.85)
+                                    .help(UsageFormatting.resetText(for: limit))
+                            }
+                            .frame(maxWidth: .infinity)
                         }
-                        .frame(maxWidth: .infinity)
                     }
+                } else {
+                    Text(state?.failure?.message ?? unavailableMessage(for: harness))
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .frame(maxWidth: .infinity, minHeight: 48, alignment: .leading)
                 }
-            } else {
-                Text(state.failure?.message ?? "Loading \(state.harness.name) usage…")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
-                    .frame(maxWidth: .infinity, minHeight: 48, alignment: .leading)
             }
         }
-    }
-
-    private var emptyState: some View {
-        let trackingEnabled = claudeTrackingEnabled || codexTrackingEnabled
-
-        return VStack(spacing: 9) {
-            Image(systemName: trackingEnabled && !store.hasCompletedDiscovery ? "bolt.badge.clock" : "bolt.slash")
-                .font(.system(size: 22, weight: .light))
-                .foregroundStyle(.secondary)
-            Text(emptyStateTitle)
-                .font(.system(size: 12.5, weight: .medium))
-            if !trackingEnabled {
-                Text("Enable a provider below to resume tracking.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            } else if store.hasCompletedDiscovery {
-                Text("Sign in with Claude Code or Codex, then refresh.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
-        }
-        .multilineTextAlignment(.center)
-        .frame(maxWidth: .infinity, minHeight: 92)
     }
 
     private var controls: some View {
-        VStack(alignment: .leading, spacing: 7) {
-            HStack(spacing: 14) {
-                Toggle("Track Claude", isOn: trackingBinding(for: .claude))
-                Toggle("Track Codex", isOn: trackingBinding(for: .codex))
+        HStack(spacing: 8) {
+            Toggle(isOn: Binding(get: { launchAtLogin }, set: setLaunchAtLogin)) {
+                Label("Launch at Login", systemImage: "power")
             }
             .toggleStyle(.checkbox)
             .controlSize(.small)
 
-            HStack(spacing: 8) {
-                Toggle(isOn: Binding(get: { launchAtLogin }, set: setLaunchAtLogin)) {
-                    Label("Launch at Login", systemImage: "power")
-                }
-                .toggleStyle(.checkbox)
-                .controlSize(.small)
-
-                if let loginItemMessage {
-                    Image(systemName: "exclamationmark.circle")
-                        .font(.system(size: 10))
-                        .foregroundStyle(.secondary)
-                        .help(loginItemMessage)
-                }
-
-                Spacer()
-
-                Button("Quit") { NSApplication.shared.terminate(nil) }
-                    .buttonStyle(.borderless)
-                    .keyboardShortcut("q")
+            if let loginItemMessage {
+                Image(systemName: "exclamationmark.circle")
+                    .font(.system(size: 10))
+                    .foregroundStyle(.secondary)
+                    .help(loginItemMessage)
             }
+
+            Spacer()
+
+            Button("Quit") { NSApplication.shared.terminate(nil) }
+                .buttonStyle(.borderless)
+                .keyboardShortcut("q")
         }
         .font(.system(size: 12.5))
     }
@@ -218,9 +187,18 @@ struct MenuBarView: View {
         .help("Metric shown in the menu bar")
     }
 
-    private var emptyStateTitle: String {
-        if !claudeTrackingEnabled && !codexTrackingEnabled { return "Usage tracking is off" }
-        return store.hasCompletedDiscovery ? "No supported harnesses found" : "Looking for Claude and Codex…"
+    private var hasEnabledProvider: Bool {
+        claudeTrackingEnabled || codexTrackingEnabled
+    }
+
+    private func isTrackingEnabled(_ harness: HarnessKind) -> Bool {
+        harness == .claude ? claudeTrackingEnabled : codexTrackingEnabled
+    }
+
+    private func unavailableMessage(for harness: HarnessKind) -> String {
+        store.hasCompletedDiscovery
+            ? "\(harness.name) usage is unavailable."
+            : "Loading \(harness.name) usage…"
     }
 
     private func trackingBinding(for harness: HarnessKind) -> Binding<Bool> {
